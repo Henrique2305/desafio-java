@@ -23,6 +23,10 @@ public class ConsumoAPI {
             throw new RuntimeException(e);
         }
 
+        if (response.statusCode() == 500) {
+            throw new IllegalArgumentException("Código inválido!");
+        }
+
         String json = response.body();
         return json;
     }
