@@ -25,18 +25,22 @@ public class Principal {
 
         System.out.println("\nDigite o tipo de veículo: ");
         String tipoDeVeiculo = leitura.nextLine();
-        exibeTodosVeiculos(tipoDeVeiculo);
+        System.out.println("\nExibindo as marcas:");
+        exibeTodosVeiculos(obterListaTodosVeiculos(tipoDeVeiculo));
 
         System.out.println("\nDigite o código da marca: ");
         String codigoMarca = leitura.nextLine();
+        System.out.println("\nExibindo os modelos da marca:");
         exibeModelosDaMarca(tipoDeVeiculo, codigoMarca);
 
         System.out.println("\nDigite o nome do modelo: ");
         String nomeModelo = leitura.nextLine();
-        exibeCarrosDoModelo(obterModelosDaMarca(tipoDeVeiculo, codigoMarca), nomeModelo);
+        System.out.println("\nExibindo os veículos do modelo:");
+        exibeVeiculosDoModelo(obterModelosDaMarca(tipoDeVeiculo, codigoMarca), nomeModelo);
 
         System.out.println("\nDigite o código do modelo: ");
         String codigoModelo = leitura.nextLine();
+        System.out.println("\nTodos os veículos filtrados com avaliações por ano: ");
         exibeDadosFinais(tipoDeVeiculo, codigoMarca, codigoModelo);
     }
 
@@ -53,18 +57,26 @@ public class Principal {
         );
     }
 
-    private String exibeTodosVeiculos(String tipoDeVeiculo) {
+    public List<DadosIniciais> obterListaTodosVeiculos(String tipoDeVeiculo) {
         tipoDeVeiculo = tipoDeVeiculo.toLowerCase();
 
-       if (!TipoVeiculos.checkType(tipoDeVeiculo)) {
-           throw new IllegalArgumentException("Tipo de veículo inválido!");
-       }
+        if (!TipoVeiculos.checkType(tipoDeVeiculo)) {
+            throw new IllegalArgumentException("Tipo de veículo inválido!");
+        }
 
         var jsonMarcas = consumo.obterDados(ENDERECO + tipoDeVeiculo + "/marcas");
 
         List<DadosIniciais> listDadosIniciais = conversor.obterDados(jsonMarcas, DadosIniciais.class);
-        listDadosIniciais.forEach(System.out::println);
-        return tipoDeVeiculo;
+        return listDadosIniciais;
+    }
+
+    private void exibeTodosVeiculos(List<DadosIniciais> listaTodosVeiculos) {
+        listaTodosVeiculos.forEach(System.out::println);
+    }
+
+    private void exibeModelosDaMarca(String tipoDeVeiculo, String codigoMarca) {
+        var result = obterModelosDaMarca(tipoDeVeiculo, codigoMarca);
+        result.modelos().forEach(System.out::println);
     }
 
     private DadosModelo obterModelosDaMarca(String tipoDeVeiculo, String codigoMarca) {
@@ -74,37 +86,53 @@ public class Principal {
                 + codigoMarca
                 + "/modelos"
         );
-        DadosModelo result = conversor.map(jsonModelos, DadosModelo.class);
-        return result;
+        DadosModelo dadosModelo = conversor.map(jsonModelos, DadosModelo.class);
+        return dadosModelo;
     }
 
-    private void exibeModelosDaMarca(String tipoDeVeiculo, String codigoMarca) {
-        var result = obterModelosDaMarca(tipoDeVeiculo, codigoMarca);
-        result.modelos().forEach(System.out::println);
+    private void exibeVeiculosDoModelo(DadosModelo dadosModelo, String nomeModelo) {
+        var listaDeModelos = validarEObterModelos(dadosModelo, nomeModelo);
+        listaDeModelos.forEach(System.out::println);
     }
 
-    private void exibeCarrosDoModelo(DadosModelo result, String nomeModelo) {
-        List<DadosIniciais> resultModelos = result.modelos().stream()
+    public List<DadosIniciais> validarEObterModelos(DadosModelo dadosModelo, String nomeModelo) {
+
+        List<DadosIniciais> listaDeModelos = dadosModelo.modelos().stream()
                 .filter(n -> n.nome()
                         .contains(nomeModelo.substring(0, 1).toUpperCase()
                                 + nomeModelo.substring(1).toLowerCase()))
                 .collect(Collectors.toList());
 
-        if (resultModelos.isEmpty()) {
-            resultModelos = result.modelos().stream()
+        if (listaDeModelos.isEmpty()) {
+            listaDeModelos = dadosModelo.modelos().stream()
+                    .filter(n -> n.nome().contains(nomeModelo.toUpperCase()))
+                    .collect(Collectors.toList());
+        }
+
+        if (listaDeModelos.isEmpty()) {
+            listaDeModelos = dadosModelo.modelos().stream()
                     .filter(n -> n.nome().contains(nomeModelo))
                     .collect(Collectors.toList());
         }
 
-        if (resultModelos.isEmpty()) {
+        if (listaDeModelos.isEmpty()) {
             throw new IllegalArgumentException("Nome do modelo inválido!");
         }
 
-        resultModelos.forEach(System.out::println);
+        return listaDeModelos;
     }
 
     private void exibeDadosFinais(String tipoDeVeiculo, String codigoMarca, String codigoModelo) {
-        var jsonAnoModelos = consumo.obterDados(ENDERECO
+        var listAnos = obterAnos(tipoDeVeiculo, codigoMarca, codigoModelo);
+
+        listAnos.forEach(v -> {
+            var dadosFinais = obterDadosVeiculo(tipoDeVeiculo, codigoMarca, codigoModelo, v.codigo());
+            System.out.println(dadosFinais.toString());
+        });
+    }
+
+    public List<DadosIniciais> obterAnos(String tipoDeVeiculo, String codigoMarca, String codigoModelo) {
+        var jsonAnos = consumo.obterDados(ENDERECO
                 + tipoDeVeiculo.toLowerCase()
                 + "/marcas/"
                 + codigoMarca
@@ -112,24 +140,22 @@ public class Principal {
                 + codigoModelo
                 + "/anos"
         );
+        List<DadosIniciais> listAnos = conversor.obterDados(jsonAnos, DadosIniciais.class);
+        return listAnos;
+    }
 
-        List<DadosIniciais> listModelosEAnos = conversor.obterDados(jsonAnoModelos, DadosIniciais.class);
+    public DadosFinais obterDadosVeiculo(String tipoDeVeiculo, String codigoMarca, String codigoModelo, String ano) {
+        var jsonDadosVeiculo = consumo.obterDados(ENDERECO
+                + tipoDeVeiculo.toLowerCase()
+                + "/marcas/"
+                + codigoMarca
+                + "/modelos/"
+                + codigoModelo
+                + "/anos/"
+                + ano
+        );
 
-        System.out.println("\nTodos os veículos filtrados com avaliações por ano: ");
-
-        listModelosEAnos.forEach(v -> {
-            var jsonVeiculoEscolhido = consumo.obterDados(ENDERECO
-                    + tipoDeVeiculo.toLowerCase()
-                    + "/marcas/"
-                    + codigoMarca
-                    + "/modelos/"
-                    + codigoModelo
-                    + "/anos/"
-                    + v.codigo()
-            );
-
-            var dadosFinais = conversor.map(jsonVeiculoEscolhido, DadosFinais.class);
-            System.out.println(dadosFinais.toString());
-        });
+        var dadosFinais = conversor.map(jsonDadosVeiculo, DadosFinais.class);
+        return dadosFinais;
     }
 }
